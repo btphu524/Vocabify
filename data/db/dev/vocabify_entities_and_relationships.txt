@@ -1,0 +1,170 @@
+VOCABIFY SCHEMA V3 - GIAI THICH THUC THE, THUOC TINH, QUAN HE
+
+==================================================
+0) THAY DOI THEO YEU CAU MOI
+==================================================
+- Bo module level_test.
+- Cau truc hoc chinh: Level -> Topic -> Lesson -> Exercise.
+- User hoan thanh het lesson trong topic/level thi unlock level tiep theo.
+- Lesson ho tro nhieu dang bai:
+  1) en_to_vi_choice  (Tieng Anh -> chon nghia Tieng Viet)
+  2) vi_to_en_choice  (Tieng Viet -> chon tu Tieng Anh)
+  3) sentence_order   (Sap xep cau)
+  4) audio_choice     (Nghe audio va chon dap an)
+
+
+==================================================
+1) ROLES + USERS
+==================================================
+roles:
+- Danh muc vai tro (admin, learner...).
+
+users:
+- Moi user co duy nhat 1 role (users.role_id -> roles.id).
+- current_level_id cho biet user dang hoc level nao hien tai.
+
+Y nghia:
+- Don gian hoa phan quyen (khong dung nhieu role/user).
+
+
+==================================================
+2) LEVELS -> TOPICS -> LESSONS -> VOCABULARY
+==================================================
+levels:
+- Cac cap do hoc (easy -> advanced), co truong order de sap xep thu tu mo khoa.
+
+topics:
+- Moi topic thuoc 1 level.
+- Vi du level easy co cac topic: animals, school, clothes...
+
+vocabulary:
+- Moi tu thuoc 1 topic.
+- Chua thong tin hoc tu: word, phonetic, audio_url, definition_en/vi, meaning_vi...
+
+lessons:
+- Moi lesson thuoc 1 topic.
+- Vi du topic animals co lesson 1, 2, 3...
+- pass_score xac dinh diem can dat de tinh hoan thanh lesson.
+
+lesson_items:
+- Gan danh sach tu vung vao lesson.
+- Vi du lesson 1 cua animals co 10 tu.
+
+
+==================================================
+3) LESSON EXERCISE (phan ban vua hoi)
+==================================================
+lesson_exercises:
+- Moi bai tap trong lesson la 1 record.
+- Truong quan trong:
+  - exercise_type: loai cau hoi
+  - prompt_text/prompt_json: noi dung cau hoi
+  - audio_url: dung cho dang nghe
+  - correct_answer_text/correct_answer_json: dap an dung
+  - vocabulary_id: lien ket tu vung (neu can)
+
+lesson_exercise_options:
+- Lua chon dap an cho dang choice.
+- Dung cho:
+  - en_to_vi_choice
+  - vi_to_en_choice
+  - audio_choice
+- Với sentence_order co the khong can options, dap an dung luu o correct_answer_json.
+
+
+==================================================
+4) LESSON ATTEMPT / ANSWER
+==================================================
+lesson_attempts:
+- Moi lan user vao hoc/lam mot lesson la 1 attempt.
+- Luu score, max_score, accuracy_percent, is_passed.
+
+lesson_attempt_answers:
+- Chi tiet tra loi tung exercise trong 1 attempt.
+- answer_text/answer_json dung cho cau tra loi tu do hoac sap xep cau.
+- selected_option_id dung cho cau hoi chon dap an.
+
+Y nghia:
+- Co du lich su hoc chi tiet de thong ke va cai thien bai hoc.
+
+
+==================================================
+5) PLACEMENT TEST (giu lai, 1 lan duy nhat cho new user)
+==================================================
+placement_questions
+placement_options
+placement_attempts
+placement_attempt_answers
+
+Rule:
+- UNIQUE(user_id) tren placement_attempts => moi user chi lam 1 lan.
+- Sau placement, assigned_level_id duoc gan vao users.current_level_id.
+
+
+==================================================
+6) PROGRESS (quan trong)
+==================================================
+user_vocab_progress:
+- Theo doi tung tu user da hoc:
+  - status, dung/sai, lan on cuoi...
+
+user_lesson_progress:
+- Tong hop theo lesson:
+  - best_score, so lan lam, status completed hay chua.
+
+user_topic_progress:
+- Tong hop theo topic:
+  - total_lessons, completed_lessons, completion_percent.
+
+user_level_progress:
+- Tong hop theo level:
+  - total_topics, completed_topics, completion_percent.
+  - is_unlocked / is_completed.
+
+Y nghia mo khoa level:
+- Khi user hoan thanh tat ca topic cua level hien tai (user_level_progress.is_completed = 1),
+  backend unlock level tiep theo:
+  - set user_level_progress.is_unlocked = 1 cho level ke tiep
+  - cap nhat users.current_level_id (neu ban muon auto-chuyen).
+
+
+==================================================
+7) TOM TAT QUAN HE CHINH
+==================================================
+- roles (1) -> (N) users
+- levels (1) -> (N) topics
+- topics (1) -> (N) vocabulary
+- topics (1) -> (N) lessons
+- lessons (1) -> (N) lesson_items
+- vocabulary (1) -> (N) lesson_items
+- lessons (1) -> (N) lesson_exercises
+- lesson_exercises (1) -> (N) lesson_exercise_options
+- users (1) -> (N) lesson_attempts
+- lesson_attempts (1) -> (N) lesson_attempt_answers
+- users (1) -> (N) user_vocab_progress
+- users (1) -> (N) user_lesson_progress
+- users (1) -> (N) user_topic_progress
+- users (1) -> (N) user_level_progress
+
+
+==================================================
+8) VI DU LESSON 10 TU (DUNG Y BAN)
+==================================================
+Topic: Animals
+Lesson 1 co 10 tu: cat, dog, lion, tiger, ...
+
+Co the tao bai tap nhu sau:
+- C1 (en_to_vi_choice): "cat" -> chon "con meo"
+- C2 (vi_to_en_choice): "con cho" -> chon "dog"
+- C3 (audio_choice): nghe /dog/ -> chon "dog"
+- C4 (sentence_order): sap xep token thanh cau "The cat is under the table."
+
+Moi cau la 1 record trong lesson_exercises.
+Neu la choice thi tao them 4 options trong lesson_exercise_options.
+Khi user lam xong:
+- Tao lesson_attempts
+- Tao lesson_attempt_answers cho tung cau
+- Cap nhat user_lesson_progress
+- Neu dat pass_score -> status lesson = completed
+- Tu do cap nhat user_topic_progress va user_level_progress.
+

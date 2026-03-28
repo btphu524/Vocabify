@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "description": "Placement question bank: each question targets one Levels.Code. Correct options use positive Score (e.g. 10); wrong options Score 0. App sums earned scores and maps to AssignedLevelId (thresholds TBD in API).",
+    "version": 1
+  },
+  "levels": [
+    {
+      "level_code": "E",
+      "questions": [
+        {
+          "question_text": "What does \"book\" mean in: \"I read a book every night\"?",
+          "explanation": "Book: quyển sách, là một vật dụng để đọc.",
+          "options": [
+            { "text": "Quyển sách", "correct": true, "score": 10 },
+            { "text": "Đặt bàn hoặc vé", "correct": false, "score": 0 },
+            { "text": "Một loại quả", "correct": false, "score": 0 },
+            { "text": "Một phương tiện lớn", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Choose the word for a person who teaches at a school.",
+          "explanation": "Teacher: giáo viên, là người dạy học tại trường học.",
+          "options": [
+            { "text": "Teacher", "correct": true, "score": 10 },
+            { "text": "Kitchen", "correct": false, "score": 0 },
+            { "text": "Window", "correct": false, "score": 0 },
+            { "text": "Holiday", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Which sentence is correct?",
+          "explanation": "Dùng \"an\" trước các nguyên âm.",
+          "options": [
+            { "text": "She is an honest person.", "correct": true, "score": 10 },
+            { "text": "She is a honest person.", "correct": false, "score": 0 },
+            { "text": "She is honest a person.", "correct": false, "score": 0 },
+            { "text": "She are an honest person.", "correct": false, "score": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "level_code": "M",
+      "questions": [
+        {
+          "question_text": "Choose the best word: \"We should ___ the environment by recycling more.\"",
+          "explanation": "Protect: bảo vệ, bảo vệ môi trường bằng cách tái chế nhiều hơn.",
+          "options": [
+            { "text": "protect", "correct": true, "score": 10 },
+            { "text": "borrow", "correct": false, "score": 0 },
+            { "text": "postpone", "correct": false, "score": 0 },
+            { "text": "ignore", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "What does \"reliable\" mean?",
+          "explanation": "Reliable: người hoặc vật có thể tin tưởng.",
+          "options": [
+            { "text": "Someone or something you can trust", "correct": true, "score": 10 },
+            { "text": "Very expensive", "correct": false, "score": 0 },
+            { "text": "Impossible to find", "correct": false, "score": 0 },
+            { "text": "Happening only once a year", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Which phrase is natural in English?",
+          "explanation": "Make a decision: Quyết định làm gì đó.",
+          "options": [
+            { "text": "Make a decision", "correct": true, "score": 10 },
+            { "text": "Do a decision", "correct": false, "score": 0 },
+            { "text": "Have a decision", "correct": false, "score": 0 },
+            { "text": "Take a decision", "correct": false, "score": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "level_code": "I",
+      "questions": [
+        {
+          "question_text": "In \"The evidence is inconclusive\", what does \"inconclusive\" suggest?",
+          "explanation": "Inconclusive: không kết luận được.",
+          "options": [
+            { "text": "The results do not prove something clearly", "correct": true, "score": 10 },
+            { "text": "The study was illegal", "correct": false, "score": 0 },
+            { "text": "Everyone agreed immediately", "correct": false, "score": 0 },
+            { "text": "The topic is not important", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Choose the word closest in meaning to \"alleviate\".",
+          "explanation": "Alleviate: giảm, giảm bớt.",
+          "options": [
+            { "text": "Reduce or ease something unpleasant", "correct": true, "score": 10 },
+            { "text": "Make something worse", "correct": false, "score": 0 },
+            { "text": "Completely remove a person", "correct": false, "score": 0 },
+            { "text": "Refuse to discuss a topic", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Which sentence uses \"affect\" correctly?",
+          "explanation": "\"affect\" là động từ; \"effect\" là danh từ.",
+          "options": [
+            { "text": "Stress can affect your sleep.", "correct": true, "score": 10 },
+            { "text": "Stress can effect your sleep.", "correct": false, "score": 0 },
+            { "text": "The affect of stress is clear.", "correct": false, "score": 0 },
+            { "text": "Stress can affects your sleep.", "correct": false, "score": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "level_code": "UI",
+      "questions": [
+        {
+          "question_text": "Which sentence best reflects nuanced, formal tone?",
+          "explanation": "\"Mitigate\" và \"adverse\" thường gặp trong ngữ cấu trang trọng.",
+          "options": [
+            { "text": "The policy aims to mitigate adverse outcomes for vulnerable groups.", "correct": true, "score": 10 },
+            { "text": "The policy tries to stop bad stuff for weak people.", "correct": false, "score": 0 },
+            { "text": "The policy is super bad for everyone always.", "correct": false, "score": 0 },
+            { "text": "The policy maybe fix problem sometime.", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "\"She is ambivalent about the offer\" means she feels ___ .",
+          "explanation": "Ambivalent: mâu thuẫn tư tưởng, đồng nghĩa với mixed hoặc conflicting feelings.",
+          "options": [
+            { "text": "Both positive and negative at the same time", "correct": true, "score": 10 },
+            { "text": "Completely uninterested", "correct": false, "score": 0 },
+            { "text": "Angry and offended", "correct": false, "score": 0 },
+            { "text": "Fully committed and excited", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Choose the best completion: \"The proposal was met with ___ from several board members.\"",
+          "explanation": "Skepticism: chủ nghĩa hoài nghi, phù hợp với sự đối lập không hoàn toàn.",
+          "options": [
+            { "text": "Skepticism", "correct": true, "score": 10 },
+            { "text": "A sandwich", "correct": false, "score": 0 },
+            { "text": "A vacation", "correct": false, "score": 0 },
+            { "text": "A recipe", "correct": false, "score": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "level_code": "A",
+      "questions": [
+        {
+          "question_text": "In academic writing, \"tenuous\" most often implies ___ .",
+          "explanation": "Tenuous: yếu, mỏng, hoặc không được hỗ trợ.",
+          "options": [
+            { "text": "a connection or argument that is weak or uncertain", "correct": true, "score": 10 },
+            { "text": "absolute certainty", "correct": false, "score": 0 },
+            { "text": "physical thickness", "correct": false, "score": 0 },
+            { "text": "a legal punishment", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "Which word is closest to \"ubiquitous\"?",
+          "explanation": "Ubiquitous: hiện dịnh, hiện hữu trong mọi nơi.",
+          "options": [
+            { "text": "Present everywhere or very common", "correct": true, "score": 10 },
+            { "text": "Extremely rare", "correct": false, "score": 0 },
+            { "text": "Illegal", "correct": false, "score": 0 },
+            { "text": "Temporary", "correct": false, "score": 0 }
+          ]
+        },
+        {
+          "question_text": "\"Ephemeral\" contrasts best with ___ .",
+          "explanation": "Ephemeral: tốn hao, không bền.",
+          "options": [
+            { "text": "Enduring", "correct": true, "score": 10 },
+            { "text": "Colorful", "correct": false, "score": 0 },
+            { "text": "Expensive", "correct": false, "score": 0 },
+            { "text": "Local", "correct": false, "score": 0 }
+          ]
+        }
+      ]
+    }
+  ]
+}

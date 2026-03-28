@@ -1,0 +1,4 @@
+"pip install -r requirements_import.txt"
+
+openpyxl>=3.1.0
+pyodbc>=5.0.0
