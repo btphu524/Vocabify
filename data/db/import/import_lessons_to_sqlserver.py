@@ -3,7 +3,7 @@ Generate Lessons + LessonItems + LessonExercises (+ MC options) for any level (d
 
 Rules (MVP):
   - Per topic: use vocabulary ordered by Id. Words 1-9 → three lessons (1-3, 4-6, 7-9). Word 10+ skipped for lessons.
-  - Each lesson: 3 LessonItems, 15 LessonExercises — layout: 1-6 MC; 7-9 MC+audio; 10-11 PF follow (PromptJson: anchor + slot tokens order randomized); 12 MP (shuffled EN/VI columns); 13-15 SR: prompt = full example line, bank of tokens to order (En/Vi/En).
+  - Each lesson: 3 LessonItems, 15 LessonExercises — layout: 1-6 MC; 7-9 MC+audio; 10-11 PF follow (PromptJson: anchor + slot tokens order randomized); 12 MP (shuffled EN/VI columns); 13-15 SR: ex 1st/2nd/3rd per word by VocabExamples.Id; answer JSON tokens only.
   - ExerciseTypes.Code in DB: MC, SR, MP, PF (see VocabifySchema.sql).
 
 Env (same as vocab import):
@@ -186,24 +186,30 @@ def fetch_vocab_for_topic(cur, topic_id: int) -> list[dict]:
     return rows
 
 
-def fetch_first_example(cur, vocabulary_id: int) -> dict | None:
+def fetch_example_nth(cur, vocabulary_id: int, ordinal: int) -> dict | None:
+    """Nth VocabExamples row for a word by Id order (ordinal 1 = first, 2 = second, ...)."""
+    if ordinal < 1:
+        return None
+    offset = ordinal - 1
     cur.execute(
         """
-        SELECT TOP 1 ExampleEn, ExampleVi
+        SELECT Id, ExampleEn, ExampleVi
         FROM dbo.VocabExamples
         WHERE VocabularyId = ? AND IsDeleted = 0
         ORDER BY Id
+        OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY
         """,
-        (vocabulary_id,),
+        (vocabulary_id, offset),
     )
     row = cur.fetchone()
     if not row:
         return None
-    en = (row[0] or "").strip()
-    vi = (row[1] or "").strip()
+    eid = int(row[0])
+    en = (row[1] or "").strip()
+    vi = (row[2] or "").strip()
     if not en:
         return None
-    return {"en": en, "vi": vi}
+    return {"id": eid, "en": en, "vi": vi}
 
 
 def tokenize_words(s: str) -> list[str]:
@@ -329,20 +335,6 @@ def insert_lesson(
             """,
             (lesson_id, w["id"], i),
         )
-
-    # First example id per vocab (for 13-15)
-    ex_cache: dict[int, int | None] = {}
-    for w in chunk:
-        cur.execute(
-            """
-            SELECT TOP 1 Id FROM dbo.VocabExamples
-            WHERE VocabularyId = ? AND IsDeleted = 0
-            ORDER BY Id
-            """,
-            (w["id"],),
-        )
-        row = cur.fetchone()
-        ex_cache[w["id"]] = int(row[0]) if row else None
 
     def insert_exercise(
         sort_order: int,
@@ -534,17 +526,16 @@ def insert_lesson(
         None,
     )
 
-    # 13-15: prompt = full example line (normal order); user arranges tokens in the answer language.
-    # 13 En→Vi, 15 En→Vi: PromptText = English; PromptJson = shuffled Vi bank; answer = Vi sentence + tokens.
-    # 14 Vi→En: PromptText = Vietnamese; PromptJson = shuffled En bank; answer = En sentence + tokens.
+    # 13-15: VocabExamples row 1 / 2 / 3 by Id (per word w0, w1, w2); prompt = full line; bank shuffled;
+    # CorrectAnswerJson: tokens only (no sentence).
     def insert_example_sr(
         sort_order: int,
         w: dict,
         mode: str,
+        example_ordinal: int,
     ) -> None:
-        ex = fetch_first_example(cur, w["id"])
-        eid = ex_cache.get(w["id"])
-        if not (ex and eid):
+        ex = fetch_example_nth(cur, w["id"], example_ordinal)
+        if not ex:
             insert_exercise(
                 sort_order,
                 "SR",
@@ -552,7 +543,7 @@ def insert_lesson(
                 None,
                 "En" if mode == "en_vi" else "Vi",
                 "Vi" if mode == "en_vi" else "En",
-                "Add VocabExamples for this word in DB.",
+                f"Not enough VocabExamples for this word (need example #{example_ordinal}).",
                 None,
                 None,
                 None,
@@ -560,6 +551,7 @@ def insert_lesson(
                 w.get("audio_url"),
             )
             return
+        eid = ex["id"]
         en_raw = strip_trailing_period((ex["en"] or "").strip())
         vi_raw = strip_trailing_period((ex["vi"] or "").strip())
         if mode == "en_vi":
@@ -571,7 +563,7 @@ def insert_lesson(
                     None,
                     "En",
                     "Vi",
-                    "Add VocabExamples for this word in DB.",
+                    f"Not enough VocabExamples for this word (need example #{example_ordinal}).",
                     None,
                     None,
                     None,
@@ -584,7 +576,7 @@ def insert_lesson(
             bank_vi = vi_toks[:]
             random.shuffle(bank_vi)
             pj_ex = {"bank": bank_vi}
-            cj_ex = {"sentence": ans_ex, "tokens": vi_toks}
+            cj_ex = {"tokens": vi_toks}
             insert_exercise(
                 sort_order,
                 "SR",
@@ -606,7 +598,7 @@ def insert_lesson(
             bank_en = en_toks[:]
             random.shuffle(bank_en)
             pj_ex = {"bank": bank_en}
-            cj_ex = {"sentence": ans_ex, "tokens": en_toks}
+            cj_ex = {"tokens": en_toks}
             insert_exercise(
                 sort_order,
                 "SR",
@@ -622,9 +614,9 @@ def insert_lesson(
                 w.get("audio_url"),
             )
 
-    insert_example_sr(13, w0, "en_vi")
-    insert_example_sr(14, w1, "vi_en")
-    insert_example_sr(15, w2, "en_vi")
+    insert_example_sr(13, w0, "en_vi", 1)
+    insert_example_sr(14, w1, "vi_en", 2)
+    insert_example_sr(15, w2, "en_vi", 3)
 
     return lesson_id, EXERCISE_COUNT
 
