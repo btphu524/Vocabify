@@ -1,15 +1,17 @@
 --CREATE DATABASE Vocabify;
---USE Vocabify;
+USE Vocabify;
 -- GO
 -- USE Vocabify;
 -- GO
 
 /*
-  Vocabify Schema V3
+  Vocabify Schema V4
   - 1 user -> 1 role
   - Placement test: one-time per user
   - Learning model: Level -> Topic -> Lesson -> Exercise
   - Lesson pass rule: Accuracy >= 80
+  - Exercise kinds: dbo.ExerciseTypes + LessonExercises.ExerciseTypeId
+  - PromptJson / CorrectAnswerJson: flexible payloads per type (see comment above LessonExercises)
 */
 
 SET ANSI_NULLS ON;
@@ -114,6 +116,7 @@ CREATE TABLE dbo.Topics (
     SortOrder INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfTopicsCreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2 NULL,
+    IsActive BIT NOT NULL CONSTRAINT DfTopicsIsActive DEFAULT 1,
     IsDeleted BIT NOT NULL CONSTRAINT DfTopicsIsDeleted DEFAULT 0,
     CONSTRAINT FkTopicsLevel FOREIGN KEY (LevelId) REFERENCES dbo.Levels(Id),
     CONSTRAINT UqTopicsLevelSlug UNIQUE (LevelId, Slug),
@@ -173,6 +176,7 @@ CREATE TABLE dbo.Lessons (
     UpdatedAt DATETIME2 NULL,
     IsActive BIT NOT NULL CONSTRAINT DfLessonsIsActive DEFAULT 1,
     IsDeleted BIT NOT NULL CONSTRAINT DfLessonsIsDeleted DEFAULT 0,
+    IsTest BIT NOT NULL CONSTRAINT DfLessonsIsTest DEFAULT 0,
     CONSTRAINT FkLessonsTopic FOREIGN KEY (TopicId) REFERENCES dbo.Topics(Id) ON DELETE CASCADE,
     CONSTRAINT UqLessonsTopicSortOrder UNIQUE (TopicId, SortOrder),
     CONSTRAINT CkLessonsPassScoreRange CHECK (PassScore BETWEEN 0 AND 100)
@@ -188,6 +192,8 @@ CREATE TABLE dbo.LessonItems (
     VocabularyId INT NOT NULL,
     SortOrder INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfLessonItemsCreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DfLessonItemsIsDeleted DEFAULT 0,
     CONSTRAINT FkLessonItemsLesson FOREIGN KEY (LessonId) REFERENCES dbo.Lessons(Id) ON DELETE CASCADE,
     CONSTRAINT FkLessonItemsVocabulary FOREIGN KEY (VocabularyId) REFERENCES dbo.Vocabulary(Id),
     CONSTRAINT UqLessonItemsLessonSortOrder UNIQUE (LessonId, SortOrder),
@@ -196,14 +202,41 @@ CREATE TABLE dbo.LessonItems (
 GO
 
 /* ==================================================
-   Table: LessonExercises
+   Table: ExerciseTypes
+   Lookup for lesson exercise kinds. Rules per type are enforced in application;
+   PromptJson / CorrectAnswerJson hold structured payloads where relational columns are not enough.
 ================================================== */
+CREATE TABLE dbo.ExerciseTypes (
+    Id INT IDENTITY(1,1) NOT NULL CONSTRAINT PkExerciseTypes PRIMARY KEY,
+    Code NVARCHAR(40) NOT NULL,
+    Name NVARCHAR(100) NOT NULL,
+    Description NVARCHAR(500) NULL,
+    CreatedAt DATETIME2 NOT NULL CONSTRAINT DfExerciseTypesCreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+    IsActive BIT NOT NULL CONSTRAINT DfExerciseTypesIsActive DEFAULT 1,
+    IsDeleted BIT NOT NULL CONSTRAINT DfExerciseTypesIsDeleted DEFAULT 0,
+    CONSTRAINT UqExerciseTypesCode UNIQUE (Code)
+);
+GO
+
+/*
+  LessonExercises column guide:
+  - PromptText / AudioUrl: short prompt or audio for MC (e.g. show English word, play audio).
+  - PromptLanguage / AnswerLanguage (En|Vi): MC direction, e.g. prompt En -> choose Vi.
+  - PromptJson: structured UI/state — e.g. SentenceReorder token list + shuffle; MatchPairs left/right lists;
+    PatternFollow template + word bank + slots; mini reorder using lesson word ids.
+  - CorrectAnswerJson: canonical answer for auto-grading — ordered tokens, pair mapping, built phrase, etc.
+  - CorrectAnswerText: optional flat answer or display string.
+  - VocabularyId: required — anchor word for this exercise (the “main” word the item is about). Multi-word / lesson-wide drills still pick one anchor (e.g. first word in lesson or the word the template focuses on); extra words stay in PromptJson / LessonItems.
+  - ExampleId: VocabExamples row for SentenceReorder / example-based tasks when applicable.
+  - MultipleChoice: use LessonExerciseOptions (wrong + right distractors); ExampleId usually NULL.
+*/
 CREATE TABLE dbo.LessonExercises (
     Id INT IDENTITY(1,1) NOT NULL CONSTRAINT PkLessonExercises PRIMARY KEY,
     LessonId INT NOT NULL,
     VocabularyId INT NOT NULL,
     ExampleId INT NULL,
-    ExerciseType NVARCHAR(40) NOT NULL,
+    ExerciseTypeId INT NOT NULL,
     PromptLanguage NVARCHAR(2) NULL,
     AnswerLanguage NVARCHAR(2) NULL,
     PromptText NVARCHAR(1000) NULL,
@@ -215,16 +248,14 @@ CREATE TABLE dbo.LessonExercises (
     Points INT NOT NULL CONSTRAINT DfLessonExercisesPoints DEFAULT 1,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfLessonExercisesCreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2 NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DfLessonExercisesIsDeleted DEFAULT 0,
     CONSTRAINT FkLessonExercisesLesson FOREIGN KEY (LessonId) REFERENCES dbo.Lessons(Id) ON DELETE CASCADE,
     CONSTRAINT FkLessonExercisesVocabulary FOREIGN KEY (VocabularyId) REFERENCES dbo.Vocabulary(Id),
     CONSTRAINT FkLessonExercisesExample FOREIGN KEY (ExampleId) REFERENCES dbo.VocabExamples(Id),
+    CONSTRAINT FkLessonExercisesExerciseType FOREIGN KEY (ExerciseTypeId) REFERENCES dbo.ExerciseTypes(Id),
     CONSTRAINT UqLessonExercisesLessonSortOrder UNIQUE (LessonId, SortOrder),
-    CONSTRAINT CkLessonExercisesType CHECK (ExerciseType IN (N'MultipleChoice', N'SentenceReorder')),
-    CONSTRAINT CkLessonExercisesLanguages CHECK (
-        (ExerciseType = N'MultipleChoice' AND ExampleId IS NULL AND PromptLanguage IN (N'En', N'Vi') AND AnswerLanguage IN (N'En', N'Vi') AND PromptLanguage <> AnswerLanguage)
-        OR
-        (ExerciseType = N'SentenceReorder' AND ExampleId IS NOT NULL AND PromptLanguage IS NULL AND AnswerLanguage IS NULL)
-    )
+    CONSTRAINT CkLessonExercisesPromptLang CHECK (PromptLanguage IS NULL OR PromptLanguage IN (N'En', N'Vi')),
+    CONSTRAINT CkLessonExercisesAnswerLang CHECK (AnswerLanguage IS NULL OR AnswerLanguage IN (N'En', N'Vi'))
 );
 GO
 
@@ -239,6 +270,8 @@ CREATE TABLE dbo.LessonExerciseOptions (
     IsCorrect BIT NOT NULL,
     SortOrder INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfLessonExerciseOptionsCreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DfLessonExerciseOptionsIsDeleted DEFAULT 0,
     CONSTRAINT FkLessonExerciseOptionsExercise FOREIGN KEY (ExerciseId) REFERENCES dbo.LessonExercises(Id) ON DELETE CASCADE,
     CONSTRAINT UqLessonExerciseOptionsSortOrder UNIQUE (ExerciseId, SortOrder)
 );
@@ -258,6 +291,8 @@ CREATE TABLE dbo.LessonAttempts (
     AccuracyPercent DECIMAL(5,2) NOT NULL CONSTRAINT DfLessonAttemptsAccuracyPercent DEFAULT 0,
     IsPassed BIT NOT NULL CONSTRAINT DfLessonAttemptsIsPassed DEFAULT 0,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfLessonAttemptsCreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DfLessonAttemptsIsDeleted DEFAULT 0,
     CONSTRAINT FkLessonAttemptsUser FOREIGN KEY (UserId) REFERENCES dbo.Users(Id) ON DELETE CASCADE,
     CONSTRAINT FkLessonAttemptsLesson FOREIGN KEY (LessonId) REFERENCES dbo.Lessons(Id) ON DELETE CASCADE,
     CONSTRAINT CkLessonAttemptsAccuracyRange CHECK (AccuracyPercent BETWEEN 0 AND 100)
@@ -277,6 +312,8 @@ CREATE TABLE dbo.LessonAttemptAnswers (
     IsCorrect BIT NOT NULL CONSTRAINT DfLessonAttemptAnswersIsCorrect DEFAULT 0,
     EarnedPoints INT NOT NULL CONSTRAINT DfLessonAttemptAnswersEarnedPoints DEFAULT 0,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DfLessonAttemptAnswersCreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DfLessonAttemptAnswersIsDeleted DEFAULT 0,
     CONSTRAINT FkLessonAttemptAnswersAttempt FOREIGN KEY (AttemptId) REFERENCES dbo.LessonAttempts(Id) ON DELETE CASCADE,
     CONSTRAINT FkLessonAttemptAnswersExercise FOREIGN KEY (ExerciseId) REFERENCES dbo.LessonExercises(Id),
     CONSTRAINT FkLessonAttemptAnswersSelectedOption FOREIGN KEY (SelectedOptionId) REFERENCES dbo.LessonExerciseOptions(Id),
@@ -457,6 +494,7 @@ CREATE INDEX IxLessonItemsLessonId ON dbo.LessonItems(LessonId);
 CREATE INDEX IxLessonExercisesLessonId ON dbo.LessonExercises(LessonId);
 CREATE INDEX IxLessonExercisesVocabularyId ON dbo.LessonExercises(VocabularyId);
 CREATE INDEX IxLessonExercisesExampleId ON dbo.LessonExercises(ExampleId);
+CREATE INDEX IxLessonExercisesExerciseTypeId ON dbo.LessonExercises(ExerciseTypeId);
 CREATE INDEX IxLessonExerciseOptionsExerciseId ON dbo.LessonExerciseOptions(ExerciseId);
 CREATE INDEX IxLessonAttemptsUserLesson ON dbo.LessonAttempts(UserId, LessonId);
 CREATE INDEX IxLessonAttemptAnswersAttemptId ON dbo.LessonAttemptAnswers(AttemptId);
@@ -477,31 +515,49 @@ GO
 /* ==================================================
    Seed Data
 ================================================== */
-IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Code = N'Admin')
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Code = N'AD')
     INSERT INTO dbo.Roles (Code, Name, Description)
     VALUES (N'AD', N'ADMIN', N'Admin system');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Code = N'Learner')
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Code = N'LE')
     INSERT INTO dbo.Roles (Code, Name, Description)
     VALUES (N'LE', N'LEARNER', N'Learner want to learn English');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'Easy')
+IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'E')
     INSERT INTO dbo.Levels (Code, Name, SortOrder, Description)
     VALUES (N'E', N'EASY', 1, N'Beginner vocabulary');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'Medium')
+IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'M')
     INSERT INTO dbo.Levels (Code, Name, SortOrder, Description)
     VALUES (N'M', N'MEDIUM', 2, N'Elementary vocabulary');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'Intermediate')
+IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'I')
     INSERT INTO dbo.Levels (Code, Name, SortOrder, Description)
     VALUES (N'I', N'INTERMEDIATE', 3, N'Intermediate vocabulary');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'UpperIntermediate')
+IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'UI')
     INSERT INTO dbo.Levels (Code, Name, SortOrder, Description)
     VALUES (N'UI', N'UPPER INTERMEDIATE', 4, N'Upper-intermediate vocabulary');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'Advanced')
+IF NOT EXISTS (SELECT 1 FROM dbo.Levels WHERE Code = N'A')
     INSERT INTO dbo.Levels (Code, Name, SortOrder, Description)
     VALUES (N'A', N'ADVANCED', 5, N'Advanced vocabulary');
+GO
+
+/* Exercise types (lesson); Code short keys: MC, SR, MP, PF */
+IF NOT EXISTS (SELECT 1 FROM dbo.ExerciseTypes WHERE Code = N'MC')
+    INSERT INTO dbo.ExerciseTypes (Code, Name, Description)
+    VALUES (N'MC', N'Multiple choice', N'Options in LessonExerciseOptions; MC En/Vi/audio prompts.');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.ExerciseTypes WHERE Code = N'SR')
+    INSERT INTO dbo.ExerciseTypes (Code, Name, Description)
+    VALUES (N'SR', N'Sentence reorder', N'Reorder tokens/phrases; often uses ExampleId + PromptJson/CorrectAnswerJson.');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.ExerciseTypes WHERE Code = N'MP')
+    INSERT INTO dbo.ExerciseTypes (Code, Name, Description)
+    VALUES (N'MP', N'Match pairs', N'Connect EN column to VI column; pairs in PromptJson/CorrectAnswerJson or options.');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.ExerciseTypes WHERE Code = N'PF')
+    INSERT INTO dbo.ExerciseTypes (Code, Name, Description)
+    VALUES (N'PF', N'Pattern follow', N'Follow a template (e.g. word + connector + word) using words from bank; JSON payloads.');
 GO

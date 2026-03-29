@@ -1,6 +1,6 @@
 {
   "meta": {
-    "description": "Placement question bank: each question targets one Levels.Code. Correct options use positive Score (e.g. 10); wrong options Score 0. App sums earned scores and maps to AssignedLevelId (thresholds TBD in API).",
+    "description": "Placement question bank: each question targets one Levels.Code. Import sets Score=1 for correct options and 0 for wrong (per option row). App sums earned scores and maps to AssignedLevelId (thresholds TBD in API).",
     "version": 1
   },
   "levels": [

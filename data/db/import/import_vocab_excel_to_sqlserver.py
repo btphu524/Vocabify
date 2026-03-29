@@ -1,7 +1,10 @@
 """
-Import vocabulary Excel (Topics, Vocabulary, VocabExamples) into SQL Server per VocabifySchema.sql.
+Import vocabulary Excel (Topics, Vocabulary, VocabExamples) into SQL Server.
+Target schema: data/db/prod/VocabifySchema.sql (Topics.IsActive / soft-delete columns as defined there).
 
-Default single-file input: data/excel/vocab_easy_10topics_10words.xlsx
+Default run (no --excel): imports all 5 Excel files (E, M, I, UI, A) under data/excel/.
+
+Single file: pass --excel and optional --level-code.
 
 Connection (choose one):
   - Env VOCABIFY_SQL_CONNECTION_STRING (full ODBC connection string), or
@@ -11,12 +14,14 @@ Connection (choose one):
 Example (PowerShell):
   $env:VOCABIFY_SQL_SERVER="PT"
   $env:VOCABIFY_SQL_DATABASE="Vocabify"
+
+  # All 5 levels (default)
+  python import_vocab_excel_to_sqlserver.py
+
+  # One file only
   python import_vocab_excel_to_sqlserver.py --excel ..\\..\\excel\\vocab_easy_10topics_10words.xlsx --level-code E
 
-  # All 5 levels (E, M, I, UI, A) — one commit after each file
-  python import_vocab_excel_to_sqlserver.py --import-all-levels
-
-  # Only Medium → Advanced (skip Easy if you already imported it)
+  # Only M, I, UI, A (when Easy is already imported)
   python import_vocab_excel_to_sqlserver.py --import-remaining-levels
 """
 
@@ -196,9 +201,9 @@ def get_or_create_topic(
     display_name = trunc(display_name, 200) or slug
     cur.execute(
         """
-        INSERT INTO dbo.Topics (LevelId, Slug, Name, Description, SortOrder, IsDeleted)
+        INSERT INTO dbo.Topics (LevelId, Slug, Name, Description, SortOrder, IsActive, IsDeleted)
         OUTPUT INSERTED.Id
-        VALUES (?, ?, ?, NULL, ?, 0)
+        VALUES (?, ?, ?, NULL, ?, 1, 0)
         """,
         (level_id, slug, display_name, sort_order),
     )
@@ -337,25 +342,20 @@ def run_import(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Import vocab Excel to SQL Server")
     parser.add_argument(
-        "--import-all-levels",
-        action="store_true",
-        help="Import all 5 Excel files (E, M, I, UI, A); one commit after each file",
-    )
-    parser.add_argument(
         "--import-remaining-levels",
         action="store_true",
-        help="Import only M, I, UI, A (4 files); use when Easy is already loaded",
+        help="Import only M, I, UI, A (4 files). Mutually exclusive with --excel.",
     )
     parser.add_argument(
         "--excel",
         type=Path,
-        default=EXCEL_DIR / "vocab_easy_10topics_10words.xlsx",
-        help="Path to .xlsx (ignored when --import-all-levels or --import-remaining-levels)",
+        default=None,
+        help="Import a single .xlsx. If omitted, imports all 5 level files under data/excel/.",
     )
     parser.add_argument(
         "--level-code",
         default="E",
-        help="Levels.Code in DB (seed uses E for Easy)",
+        help="Levels.Code for single-file import only (default E)",
     )
     parser.add_argument(
         "--dry-run",
@@ -364,16 +364,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.import_all_levels and args.import_remaining_levels:
-        print("Use only one of --import-all-levels or --import-remaining-levels.", file=sys.stderr)
+    if args.import_remaining_levels and args.excel is not None:
+        print("Do not combine --excel with --import-remaining-levels.", file=sys.stderr)
         return 1
 
-    if args.import_all_levels:
-        job_list = ALL_LEVEL_FILES
-    elif args.import_remaining_levels:
+    if args.import_remaining_levels:
         job_list = REMAINING_LEVEL_FILES
-    else:
+    elif args.excel is not None:
         job_list = None
+    else:
+        job_list = ALL_LEVEL_FILES
 
     if job_list is not None:
         jobs: list[tuple[Path, str]] = []
